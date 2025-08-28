@@ -1,4 +1,4 @@
-const socket = io("http://localhost:3000");
+const socket = io();
 
 const loginPage = document.getElementById("login-page");
 const chatPage = document.getElementById("chat-page");
@@ -13,7 +13,6 @@ const chatHeader = document.getElementById("chat-header");
 let currentUser = "";
 let currentReceiver = "";
 
-// Handle login
 loginForm.addEventListener("submit", (e) => {
     e.preventDefault();
     currentUser = usernameInput.value.trim();
@@ -24,12 +23,10 @@ loginForm.addEventListener("submit", (e) => {
     }
 });
 
-// Send message
 sendBtn.addEventListener("click", () => {
     const msg = messageInput.value.trim();
     if (msg && currentReceiver) {
         socket.emit("chatMessage", { from: currentUser, to: currentReceiver, message: msg });
-        console.log("Sending:", { from: currentUser, to: currentReceiver, msg });
         addMessage(`Me: ${msg}`, "me");
         messageInput.value = "";
     } else {
@@ -37,13 +34,10 @@ sendBtn.addEventListener("click", () => {
     }
 });
 
-// Receive messages
 socket.on("chatMessage", ({ from, message }) => {
-    console.log("Received:", { from, message });
     addMessage(`${from}: ${message}`, "other");
 });
 
-// Update online users list
 socket.on("userList", (users) => {
     userListDiv.innerHTML = "";
     users.forEach((user) => {
