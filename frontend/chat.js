@@ -1,5 +1,5 @@
-// const socket = io();
-const socket = io("http://localhost:3000");
+const socket = io();
+// const socket = io("http://localhost:3000");
 
 const loginPage = document.getElementById("login-page");
 const chatPage = document.getElementById("chat-page");
@@ -64,6 +64,5 @@ function addMessage(msg, type) {
     div.textContent = msg;
     div.classList.add("message", type);
     chatBox.appendChild(div);
-    // chatBox.appendChild(br);
     chatBox.scrollTop = chatBox.scrollHeight;
 }
