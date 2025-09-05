@@ -145,7 +145,7 @@ body {
   word-wrap: break-word;
 }
 
-.message.me {
+.message.other {
   background: #0084ff;
   color: white;
   align-self: flex-start;
@@ -155,7 +155,7 @@ body {
   max-width: 70%;
 }
 
-.message.other {
+.message.me {
   background: #e9ecef;
   color: black;
   align-self: flex-end;
