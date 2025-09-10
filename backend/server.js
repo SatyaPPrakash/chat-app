@@ -49,6 +49,16 @@ io.on("connection", (socket) => {
     if (norm && users.get(norm)?.id === socket.id) users.delete(norm);
     io.emit("userList", Array.from(users.values()).map(u => u.display));
   });
+
+  socket.on("typing", ({ from, to, isTyping }) => {
+    const target = users.get(String(to || "").toLowerCase());
+    if (target) io.to(target.id).emit("typing", { from, isTyping });
+  });
+
+  socket.on("messageSeen", ({ from, to }) => {
+    const target = users.get(String(to || "").toLowerCase());
+    if (target) io.to(target.id).emit("messageSeen", { from });
+  });
 });
 
 const PORT = process.env.PORT || 3000;

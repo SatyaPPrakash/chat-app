@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
   <title>Chat App</title>
@@ -12,6 +13,7 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 </head>
+
 <body>
   <!-- Login Page -->
   <div id="login-page">
@@ -27,7 +29,7 @@
   <!-- Chat Page (hidden until login) -->
   <div id="chat-page" class="chat-container hidden">
     <!-- Sidebar -->
-    <div class="sidebar" >
+    <div class="sidebar">
       <h3>Online Users</h3>
       <div id="user-list"></div>
     </div>
@@ -35,7 +37,13 @@
     <!-- Chat Window -->
     <div class="chat-window">
       <div id="chat-header">
-        <span id="chat-title">Select a user to chat</span>
+        <div class="chat-info">
+          <div class="avatar"><i class="bi bi-person-circle"></i></div>
+          <div class="chat-meta">
+            <span id="chat-username">Select a user</span>
+            <small id="chat-status">Offline</small>
+          </div>
+        </div>
         <div class="header-actions">
           <button id="theme-btn" title="Toggle Theme"><i class="bi bi-moon-fill"></i></button>
           <button id="sidebar-btn" class="d-md-none" title="Toggle Users"><i class="bi bi-people-fill"></i></button>
@@ -58,4 +66,5 @@
   <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
   <script src="chat.js"></script>
 </body>
+
 </html>
