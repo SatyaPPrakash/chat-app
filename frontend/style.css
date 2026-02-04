@@ -322,3 +322,197 @@ body.dark #user-list button.active {
   }
 
 }
+
+/* Chat and file share */
+.chat-input {
+  display: flex;
+  align-items: center;
+  padding: 8px;
+  border-top: 1px solid #ddd;
+  background: #fff;
+}
+
+#input-wrapper {
+  flex: 1;
+}
+
+#message-input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #ccc;
+  border-radius: 20px;
+  outline: none;
+}
+
+.chat-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 8px;
+}
+
+.chat-actions button,
+#file-btn {
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 20px;
+  color: #555;
+  transition: color 0.2s;
+}
+
+.chat-actions button:hover,
+#file-btn:hover {
+  color: #0084ff;
+}
+
+/* Preview */
+.message img.preview {
+  max-width: 200px;
+  max-height: 150px;
+  border-radius: 8px;
+  cursor: pointer;
+  margin-top: 5px;
+}
+
+.file-bubble {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #e9ecef;
+  padding: 8px 12px;
+  border-radius: 10px;
+  text-decoration: none;
+  color: inherit;
+  font-weight: 500;
+}
+
+.file-bubble:hover {
+  background: #d6e4ff;
+}
+
+body.dark .file-bubble {
+  background: #3a3b3c;
+  color: #fff;
+}
+
+/* Lightbox overlay */
+#lightbox {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0.85);
+  display: none;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+}
+
+#lightbox img {
+  max-width: 90%;
+  max-height: 90%;
+  border-radius: 10px;
+}
+.progress-circle {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: conic-gradient(#ccc 0deg, #ccc 360deg);
+  margin-right: 8px;
+}
+.file-bubble {
+  display: inline-block;
+  padding: 6px 10px;
+  background: #eee;
+  border-radius: 6px;
+  text-decoration: none;
+  color: #333;
+}
+.chat-image {
+  max-width: 150px;
+  border-radius: 8px;
+}
+
+
+/* ===============================
+   MOBILE RESPONSIVE PATCH
+   (ADD AT BOTTOM — no UI change)
+================================ */
+
+/* Stack layout on small screens */
+@media (max-width: 768px) {
+
+  body {
+    overflow: hidden;
+  }
+
+  .chat-container {
+    flex-direction: column;
+    height: 100vh;
+  }
+
+  /* Sidebar becomes slide panel */
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    width: 75%;
+    max-width: 300px;
+    z-index: 1000;
+    background: #f7f9fb;
+    transform: translateX(-100%);
+    box-shadow: 4px 0 15px rgba(0,0,0,.25);
+  }
+
+  .sidebar.show {
+    transform: translateX(0);
+  }
+
+  /* Chat fills screen */
+  .chat-window {
+    width: 100%;
+    height: 100vh;
+  }
+
+  /* Header tighter */
+  #chat-header {
+    padding: 8px 10px;
+  }
+
+  /* Messages fit better */
+  .message {
+    max-width: 85%;
+    font-size: 14px;
+  }
+
+  .message.code-block pre {
+    max-width: 100%;
+  }
+
+  /* Input stays visible */
+  .chat-input {
+    position: sticky;
+    bottom: 0;
+    background: #fff;
+    z-index: 10;
+  }
+
+  body.dark .chat-input {
+    background: #1b1b1b;
+  }
+
+  /* Bigger tap targets */
+  .chat-input button {
+    padding: 10px 12px;
+    font-size: 18px;
+  }
+
+  /* Lightbox scale */
+  #lightbox img {
+    max-width: 95%;
+    max-height: 85%;
+  }
+}

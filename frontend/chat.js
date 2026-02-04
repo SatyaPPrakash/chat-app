@@ -26,7 +26,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function getInputEl() { return document.getElementById("message-input"); }
   function getInputValue() { const el = getInputEl(); return el ? el.value : ""; }
-  function setInputValue(v){ const el = getInputEl(); if(el) el.value = v; }
+  function setInputValue(v) { const el = getInputEl(); if (el) el.value = v; }
+
+  document.getElementById("sidebar-btn")
+  .addEventListener("click", () => {
+    document.querySelector(".sidebar").classList.toggle("show");
+  });
+
 
   function updateHeader(user, online) {
     if (!user) {
@@ -38,36 +44,71 @@ document.addEventListener("DOMContentLoaded", () => {
     chatStatusEl.textContent = online ? "Online" : "Offline";
   }
 
-  function addMessage(msg, type, code=false, from="", seen=false) {
-    const wrapper = document.createElement("div");
-    wrapper.classList.add("message", type);
-    if (code) {
-      wrapper.classList.add("code-block");
-      const label = document.createElement("div");
-      label.textContent = from + ":";
-      const pre = document.createElement("pre");
-      const codeTag = document.createElement("code");
-      codeTag.textContent = msg;
-      pre.appendChild(codeTag);
-      wrapper.appendChild(label);
-      wrapper.appendChild(pre);
-      chatBox.appendChild(wrapper);
-      try{ if(window.hljs?.highlightElement) hljs.highlightElement(codeTag); }catch(e){}
+  function addMessage(msg, type, code = false, from = "", seen = false, extra = {}) {
+  const wrapper = document.createElement("div");
+  wrapper.classList.add("message", type);
+
+  // Label (sender name)
+  const label = document.createElement("div");
+  label.classList.add("msg-label");
+  if (from) label.textContent = from + ":";
+  if (from) wrapper.appendChild(label);
+
+  if (code) {
+    // Code block
+    wrapper.classList.add("code-block");
+    const pre = document.createElement("pre");
+    const codeTag = document.createElement("code");
+    codeTag.textContent = msg;
+    pre.appendChild(codeTag);
+    wrapper.appendChild(pre);
+    try { if (window.hljs?.highlightElement) hljs.highlightElement(codeTag); } catch (e) {}
+  } 
+  else if (extra.progress) {
+    // Progress bubble
+    wrapper.dataset.id = extra.id;
+    wrapper.innerHTML = `
+      <div class="progress-circle"></div>
+      <span>Uploading ${msg}...</span>
+    `;
+  } 
+  else if (extra.file) {
+    // File message
+    if (extra.fileType?.startsWith("image/")) {
+      const img = document.createElement("img");
+      img.src = extra.fileData;
+      img.alt = extra.fileName;
+      img.classList.add("chat-image");
+      wrapper.appendChild(img);
     } else {
-      wrapper.textContent = from + ": " + msg;
+      const link = document.createElement("a");
+      link.href = extra.fileData;
+      link.download = extra.fileName;
+      link.textContent = "📎 " + extra.fileName;
+      link.classList.add("file-bubble");
+      wrapper.appendChild(link);
     }
-
-    if (type === "me") {
-      const ticks = document.createElement("span");
-      ticks.classList.add("ticks");
-      ticks.textContent = seen ? "✓✓" : "✓";
-      wrapper.appendChild(ticks);
-      if (seen) wrapper.classList.add("seen");
-    }
-
-    chatBox.appendChild(wrapper);
-    chatBox.scrollTop = chatBox.scrollHeight;
+  } 
+  else {
+    // Plain text
+    const text = document.createElement("span");
+    text.textContent = msg;
+    wrapper.appendChild(text);
   }
+
+  // Seen ticks for self messages
+  if (type === "me" && !extra.progress) {
+    const ticks = document.createElement("span");
+    ticks.classList.add("ticks");
+    ticks.textContent = seen ? "✓✓" : "✓";
+    wrapper.appendChild(ticks);
+    if (seen) wrapper.classList.add("seen");
+  }
+
+  chatBox.appendChild(wrapper);
+  chatBox.scrollTop = chatBox.scrollHeight;
+}
+
 
   function renderChat(user) {
     chatBox.innerHTML = "";
@@ -170,7 +211,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (user === currentReceiver) btn.classList.add("active");
       btn.addEventListener("click", () => {
         currentReceiver = user;
-        document.querySelectorAll("#user-list button").forEach(b=>b.classList.remove("active"));
+        document.querySelectorAll("#user-list button").forEach(b => b.classList.remove("active"));
         btn.classList.add("active");
         updateHeader(user, onlineUsers.includes(user));
         renderChat(user);
@@ -200,5 +241,89 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
-  socket.on("connect", () => {});
+  const fileBtn = document.getElementById("file-btn");
+  const fileInput = document.getElementById("file-input");
+
+  fileBtn.addEventListener("click", () => fileInput.click());
+
+  fileInput.addEventListener("change", () => {
+    const file = fileInput.files[0];
+    if (!file) return;
+
+    const tempId = Date.now(); // unique ID for progress placeholder
+
+    // show progress placeholder
+    addMessage(`Uploading ${file.name}...`, "file-progress", null, currentUser, tempId);
+
+    const reader = new FileReader();
+    reader.onloadstart = () => updateProgress(tempId, 0);
+    reader.onprogress = (e) => {
+      if (e.lengthComputable) {
+        const percent = Math.round((e.loaded / e.total) * 100);
+        updateProgress(tempId, percent);
+      }
+    };
+    reader.onload = () => {
+      socket.emit("fileMessage", {
+        to: currentReceiver,
+        from: currentUser,
+        fileName: file.name,
+        fileType: file.type,
+        fileData: reader.result
+      });
+      // remove progress when done (real message comes from socket)
+      removeMessage(tempId);
+    };
+    reader.readAsDataURL(file);
+
+    fileInput.value = "";
+  });
+
+  function updateProgress(id, percent) {
+    const el = document.querySelector(`[data-id="${id}"] .progress-circle`);
+    if (el) el.style.background = `conic-gradient(#4caf50 ${percent * 3.6}deg, #ccc 0deg)`;
+  }
+
+  function removeMessage(id) {
+    const el = document.querySelector(`[data-id="${id}"]`);
+    if (el) el.remove();
+  }
+
+
+  socket.on("fileMessage", ({ from, fileName, fileType, fileData }) => {
+    const div = document.createElement("div");
+    div.classList.add("message", from === currentUser ? "me" : "other");
+
+    if (fileType.startsWith("image/")) {
+      const img = document.createElement("img");
+      img.src = fileData;
+      img.alt = fileName;
+      img.classList.add("preview");
+
+      img.addEventListener("click", () => {
+        document.querySelector("#lightbox img").src = fileData;
+        document.getElementById("lightbox").style.display = "flex";
+      });
+
+      div.appendChild(img);
+    } else {
+      const a = document.createElement("a");
+      a.href = fileData;
+      a.download = fileName;
+      a.classList.add("file-bubble");
+      a.innerHTML = `<i class="bi bi-paperclip"></i> ${fileName}`;
+      div.appendChild(a);
+    }
+
+    chatBox.appendChild(div);
+    chatBox.scrollTop = chatBox.scrollHeight;
+  });
+
+  document.getElementById("lightbox").addEventListener("click", () => {
+    document.getElementById("lightbox").style.display = "none";
+    document.querySelector("#lightbox img").src = "";
+  });
+
+
+  socket.on("connect", () => { });
 });

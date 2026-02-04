@@ -59,6 +59,23 @@ io.on("connection", (socket) => {
     const target = users.get(String(to || "").toLowerCase());
     if (target) io.to(target.id).emit("messageSeen", { from });
   });
+
+  socket.on("fileMessage", ({ from, to, fileName, fileType, fileData }) => {
+    const target = users.get(to.toLowerCase());
+    if (target) {
+      io.to(target.id).emit("fileMessage", { from, fileName, fileType, fileData });
+    }
+  });
+
+  socket.on("fileMessage", ({ to, from, fileName, fileType, fileData, tempId }) => {
+    if (users[to]) {
+      io.to(users[to]).emit("fileMessage", { from, fileName, fileType, fileData });
+    }
+    io.to(users[from]).emit("fileMessage", { from, fileName, fileType, fileData, tempId });
+  });
+
+
+
 });
 
 const PORT = process.env.PORT || 3000;
