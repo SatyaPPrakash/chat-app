@@ -24,9 +24,16 @@ document.addEventListener("DOMContentLoaded", () => {
   const typingTimers = {}; // per-user typing timeout
   let onlineUsers = [];
 
+  sidebarBtn.addEventListener("click", () => {
+    document.querySelector(".sidebar").classList.toggle("show");
+  });
+  userListDiv.addEventListener("click", () => {
+    document.querySelector(".sidebar").classList.remove("show");
+  });
+
   function getInputEl() { return document.getElementById("message-input"); }
   function getInputValue() { const el = getInputEl(); return el ? el.value : ""; }
-  function setInputValue(v){ const el = getInputEl(); if(el) el.value = v; }
+  function setInputValue(v) { const el = getInputEl(); if (el) el.value = v; }
 
   function updateHeader(user, online) {
     if (!user) {
@@ -38,7 +45,7 @@ document.addEventListener("DOMContentLoaded", () => {
     chatStatusEl.textContent = online ? "Online" : "Offline";
   }
 
-  function addMessage(msg, type, code=false, from="", seen=false) {
+  function addMessage(msg, type, code = false, from = "", seen = false) {
     const wrapper = document.createElement("div");
     wrapper.classList.add("message", type);
     if (code) {
@@ -52,7 +59,7 @@ document.addEventListener("DOMContentLoaded", () => {
       wrapper.appendChild(label);
       wrapper.appendChild(pre);
       chatBox.appendChild(wrapper);
-      try{ if(window.hljs?.highlightElement) hljs.highlightElement(codeTag); }catch(e){}
+      try { if (window.hljs?.highlightElement) hljs.highlightElement(codeTag); } catch (e) { }
     } else {
       wrapper.textContent = from + ": " + msg;
     }
@@ -170,7 +177,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (user === currentReceiver) btn.classList.add("active");
       btn.addEventListener("click", () => {
         currentReceiver = user;
-        document.querySelectorAll("#user-list button").forEach(b=>b.classList.remove("active"));
+        document.querySelectorAll("#user-list button").forEach(b => b.classList.remove("active"));
         btn.classList.add("active");
         updateHeader(user, onlineUsers.includes(user));
         renderChat(user);
@@ -200,5 +207,5 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
-  socket.on("connect", () => {});
+  socket.on("connect", () => { });
 });
