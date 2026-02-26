@@ -31,12 +31,12 @@ io.on("connection", (socket) => {
     io.emit("userList", Array.from(users.values()).map(u => u.display));
   });
 
-  socket.on("chatMessage", ({ from, to, message, code }) => {
+  socket.on("chatMessage", ({ from, to, message, code, file }) => {
     if (!to || !from) return;
     if (from.toLowerCase() === String(to || "").toLowerCase()) return; // ignore self-send
     const target = users.get(String(to || "").toLowerCase());
     if (target) {
-      io.to(target.id).emit("chatMessage", { from, message, code: !!code });
+      io.to(target.id).emit("chatMessage", { from, message, code: !!code, file });
     }
   });
 

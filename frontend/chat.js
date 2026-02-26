@@ -11,6 +11,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const chatBox = document.getElementById("chat-box");
   const inputWrapper = document.getElementById("input-wrapper");
   const preBtn = document.getElementById("pre-btn");
+  const attachBtn = document.getElementById("attach-btn");
+  const fileInput = document.getElementById("file-input");
   const sendBtn = document.getElementById("send-btn");
   const themeBtn = document.getElementById("theme-btn");
   const sidebarBtn = document.getElementById("sidebar-btn");
@@ -45,12 +47,34 @@ document.addEventListener("DOMContentLoaded", () => {
     chatStatusEl.textContent = online ? "Online" : "Offline";
   }
 
-  function addMessage(msg, type, code = false, from = "", seen = false) {
+  function addMessage(msg, type, code = false, from = "", seen = false, file = null) {
     const wrapper = document.createElement("div");
     wrapper.classList.add("message", type);
-    if (code) {
+
+    let isText = false;
+    if (file) {
+      if (file.type && file.type.startsWith("image/")) {
+        const img = document.createElement("img");
+        img.src = file.data;
+        img.classList.add("shared-image");
+        if (msg) { // Optional caption
+          const caption = document.createElement("div");
+          caption.textContent = msg;
+          wrapper.appendChild(caption);
+        }
+        wrapper.appendChild(img);
+      } else {
+        const link = document.createElement("a");
+        link.href = file.data;
+        link.download = file.name || "download";
+        link.textContent = `📎 ${file.name || "Download File"}`;
+        link.classList.add("shared-file");
+        wrapper.appendChild(link);
+      }
+    } else if (code) {
       wrapper.classList.add("code-block");
       const label = document.createElement("div");
+      label.classList.add("code-label"); // Added for styling
       label.textContent = from + ":";
       const pre = document.createElement("pre");
       const codeTag = document.createElement("code");
@@ -58,10 +82,30 @@ document.addEventListener("DOMContentLoaded", () => {
       pre.appendChild(codeTag);
       wrapper.appendChild(label);
       wrapper.appendChild(pre);
-      chatBox.appendChild(wrapper);
       try { if (window.hljs?.highlightElement) hljs.highlightElement(codeTag); } catch (e) { }
     } else {
       wrapper.textContent = from + ": " + msg;
+      isText = true;
+    }
+
+    if (isText || code) {
+      const copyBtn = document.createElement("i");
+      copyBtn.classList.add("bi", "bi-clipboard", "copy-btn");
+      copyBtn.title = "Copy text";
+      copyBtn.addEventListener("click", () => {
+        navigator.clipboard.writeText(msg).then(() => {
+          copyBtn.classList.replace("bi-clipboard", "bi-check2");
+          setTimeout(() => copyBtn.classList.replace("bi-check2", "bi-clipboard"), 2000);
+        });
+      });
+
+      if (code) {
+        // Append to the header label for code blocks
+        const labelDiv = wrapper.querySelector(".code-label");
+        if (labelDiv) labelDiv.appendChild(copyBtn);
+      } else {
+        wrapper.appendChild(copyBtn);
+      }
     }
 
     if (type === "me") {
@@ -79,7 +123,7 @@ document.addEventListener("DOMContentLoaded", () => {
   function renderChat(user) {
     chatBox.innerHTML = "";
     const list = chats[user] || [];
-    list.forEach(m => addMessage(m.message, m.type, !!m.code, m.from, !!m.seen));
+    list.forEach(m => addMessage(m.message, m.type, !!m.code, m.from, !!m.seen, m.file));
   }
 
   function sendMessage() {
@@ -97,6 +141,38 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   sendBtn?.addEventListener("click", sendMessage);
+
+  attachBtn?.addEventListener("click", () => {
+    if (!currentReceiver) { alert("Select a user to share files with"); return; }
+    fileInput.click();
+  });
+
+  fileInput?.addEventListener("change", (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      alert("File is too large (max 5MB)");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const fileData = {
+        name: file.name,
+        type: file.type,
+        data: evt.target.result // Base64 representation
+      };
+
+      socket.emit("chatMessage", { from: currentUser, to: currentReceiver, message: "", code: false, file: fileData });
+
+      if (!chats[currentReceiver]) chats[currentReceiver] = [];
+      chats[currentReceiver].push({ from: currentUser, message: "", type: "me", code: false, seen: false, file: fileData });
+      renderChat(currentReceiver);
+    };
+    reader.readAsDataURL(file);
+    fileInput.value = ""; // Reset input
+  });
   inputWrapper.addEventListener("keydown", (e) => {
     const el = getInputEl();
     if (!el) return;
@@ -137,9 +213,9 @@ document.addEventListener("DOMContentLoaded", () => {
     if (sb) sb.classList.toggle("collapsed");
   });
 
-  socket.on("chatMessage", ({ from, message, code }) => {
+  socket.on("chatMessage", ({ from, message, code, file }) => {
     if (!chats[from]) chats[from] = [];
-    chats[from].push({ from, message, type: "other", code: !!code, seen: false });
+    chats[from].push({ from, message, type: "other", code: !!code, seen: false, file });
 
     if (currentReceiver === from) {
       renderChat(from);
