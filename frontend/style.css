@@ -148,6 +148,10 @@ body {
   cursor: pointer;
 }
 
+#notification-btn.off {
+  opacity: 0.65;
+}
+
 /* Chat box */
 .chat-box {
   flex: 1;
@@ -357,6 +361,14 @@ body.dark #chat-header {
   border-bottom-color: #333;
 }
 
+body.dark .header-actions {
+  background: #27303a;
+}
+
+body.dark .header-actions button {
+  color: #f2f4f8;
+}
+
 body.dark #message-input,
 body.dark #user-list button {
   background: #2b2c2d;
@@ -526,11 +538,6 @@ body.dark #user-list button.active {
     padding: 12px;
   }
 }
-@media (max-width:768px){
-  .sidebar.collapsed{display:flex;}
-  .sidebar.show{display:flex;}
-}
-
 /* Reply preview */
 .reply-preview {
   background: #f0f0f0;
@@ -549,6 +556,15 @@ body.dark #user-list button.active {
   color: #666;
 }
 
+body.dark .reply-preview {
+  background: #1f2b33;
+  color: #f2f4f8;
+}
+
+body.dark .reply-preview .reply-cancel {
+  color: #d9dee6;
+}
+
 /* Context menu */
 .context-menu {
   position: absolute;
@@ -564,6 +580,19 @@ body.dark #user-list button.active {
 }
 .context-menu-item:hover {
   background: #eee;
+}
+
+body.dark .context-menu {
+  background: #1e2329;
+  border-color: #39424e;
+}
+
+body.dark .context-menu-item {
+  color: #f2f4f8;
+}
+
+body.dark .context-menu-item:hover {
+  background: #2f3a47;
 }
 
 /* Reply box inside messages */

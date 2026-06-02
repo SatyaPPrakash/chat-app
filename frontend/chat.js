@@ -23,6 +23,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const sendBtn = document.getElementById("send-btn");
   const themeBtn = document.getElementById("theme-btn");
   const sidebarBtn = document.getElementById("sidebar-btn");
+  const sidebarEl = document.querySelector(".sidebar");
+  const chatWindowEl = document.querySelector(".chat-window");
 
   const logoutBtn = document.createElement("button");
   logoutBtn.id = "logout-btn";
@@ -34,6 +36,10 @@ document.addEventListener("DOMContentLoaded", () => {
   logoutBtn.style.cursor = "pointer";
   const headerActions = document.querySelector(".header-actions");
   headerActions.appendChild(logoutBtn);
+  const notificationBtn = document.createElement("button");
+  notificationBtn.id = "notification-btn";
+  notificationBtn.title = "Toggle Notifications";
+  headerActions.appendChild(notificationBtn);
 
   let currentUser = "";
   let currentReceiver = "";
@@ -41,6 +47,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let codeMode = false;
   let unreadCount = 0;
   let isWindowActive = document.hasFocus();
+  let notificationsEnabled = localStorage.getItem("notificationsEnabled") !== "false";
   let typingTimer;
   let currentReply = null;
   const TYPING_TIMEOUT = 1500;
@@ -76,6 +83,29 @@ document.addEventListener("DOMContentLoaded", () => {
   function getInputEl() { return document.getElementById("message-input"); }
   function getInputValue() { const el = getInputEl(); return el ? el.value : ""; }
   function setInputValue(v) { const el = getInputEl(); if (el) el.value = v; }
+  function openSidebar() {
+    if (!sidebarEl) return;
+    sidebarEl.classList.remove("collapsed");
+    sidebarEl.classList.add("show");
+  }
+  function closeSidebar() {
+    if (!sidebarEl) return;
+    sidebarEl.classList.add("collapsed");
+    sidebarEl.classList.remove("show");
+  }
+  function toggleSidebar() {
+    if (!sidebarEl) return;
+    if (sidebarEl.classList.contains("collapsed")) {
+      openSidebar();
+    } else {
+      closeSidebar();
+    }
+  }
+  function updateNotificationToggleUI() {
+    notificationBtn.innerHTML = notificationsEnabled ? "<i class='bi bi-bell-fill'></i>" : "<i class='bi bi-bell-slash-fill'></i>";
+    notificationBtn.title = notificationsEnabled ? "Notifications: On" : "Notifications: Off";
+    notificationBtn.classList.toggle("off", !notificationsEnabled);
+  }
 
   function updateHeader(user, online) {
     if (!user) {
@@ -258,9 +288,10 @@ document.addEventListener("DOMContentLoaded", () => {
   loginError.style.marginTop = "8px";
   loginForm.appendChild(loginError);
 
-  if (typeof Notification !== "undefined" && Notification.permission !== "granted") {
+  if (notificationsEnabled && typeof Notification !== "undefined" && Notification.permission !== "granted") {
     Notification.requestPermission();
   }
+  updateNotificationToggleUI();
 
   socket.on("connect", () => {
     const stored = localStorage.getItem("chatUsername");
@@ -280,7 +311,7 @@ document.addEventListener("DOMContentLoaded", () => {
     e.preventDefault();
     const desired = usernameInput.value.trim();
     if (!desired) return;
-    if (typeof Notification !== "undefined" && Notification.permission === "default") {
+    if (notificationsEnabled && typeof Notification !== "undefined" && Notification.permission === "default") {
       Notification.requestPermission();
     }
     socket.emit("register", desired, (res) => {
@@ -312,12 +343,25 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   // --- UI event listeners ---
-  sidebarBtn.addEventListener("click", () => {
-    document.querySelector(".sidebar").classList.toggle("show");
+  sidebarBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    toggleSidebar();
   });
 
   userListDiv.addEventListener("click", () => {
-    document.querySelector(".sidebar").classList.remove("show");
+    closeSidebar();
+  });
+  chatWindowEl.addEventListener("click", closeSidebar);
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") closeSidebar();
+  });
+  notificationBtn.addEventListener("click", () => {
+    notificationsEnabled = !notificationsEnabled;
+    localStorage.setItem("notificationsEnabled", String(notificationsEnabled));
+    updateNotificationToggleUI();
+    if (notificationsEnabled && typeof Notification !== "undefined" && Notification.permission === "default") {
+      Notification.requestPermission();
+    }
   });
 
   themeBtn.addEventListener("click", () => document.body.classList.toggle("dark"));
@@ -413,7 +457,7 @@ document.addEventListener("DOMContentLoaded", () => {
     
     updateTitleBadge();
     
-    if ((document.hidden || !isWindowActive) && typeof Notification !== "undefined" && Notification.permission === "granted") {
+    if (notificationsEnabled && (document.hidden || !isWindowActive) && typeof Notification !== "undefined" && Notification.permission === "granted") {
       new Notification("New message from " + from, { body: message || "File attachment" });
     }
   });
@@ -455,6 +499,7 @@ document.addEventListener("DOMContentLoaded", () => {
         markConversationSeen(user, true);
         renderChat(user);
         updateTitleBadge();
+        closeSidebar();
       });
       userListDiv.appendChild(btn);
     });
