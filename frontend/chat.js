@@ -1,5 +1,12 @@
 document.addEventListener("DOMContentLoaded", () => {
-  const socket = io();
+  document.body.classList.add("dark");
+  const socket = io({
+    reconnection: true,
+    reconnectionAttempts: Infinity,
+    reconnectionDelay: 1000,
+    reconnectionDelayMax: 5000,
+    timeout: 20000
+  });
 
   const loginPage = document.getElementById("login-page");
   const chatPage = document.getElementById("chat-page");
@@ -17,21 +24,54 @@ document.addEventListener("DOMContentLoaded", () => {
   const themeBtn = document.getElementById("theme-btn");
   const sidebarBtn = document.getElementById("sidebar-btn");
 
+  const logoutBtn = document.createElement("button");
+  logoutBtn.id = "logout-btn";
+  logoutBtn.title = "Logout";
+  logoutBtn.innerHTML = "<i class='bi bi-box-arrow-right'></i>";
+  logoutBtn.style.marginLeft = "auto";
+  logoutBtn.style.background = "transparent";
+  logoutBtn.style.border = "0";
+  logoutBtn.style.cursor = "pointer";
+  const headerActions = document.querySelector(".header-actions");
+  headerActions.appendChild(logoutBtn);
+
   let currentUser = "";
   let currentReceiver = "";
-  let chats = {}; // { username: [ {from, message, type, code, seen} ] }
+  let chats = {};
   let codeMode = false;
-  let typingTimer = null;
+  let unreadCount = 0;
+  let isWindowActive = document.hasFocus();
+  let typingTimer;
+  let currentReply = null;
   const TYPING_TIMEOUT = 1500;
-  const typingTimers = {}; // per-user typing timeout
+  const typingTimers = {};
   let onlineUsers = [];
 
-  sidebarBtn.addEventListener("click", () => {
-    document.querySelector(".sidebar").classList.toggle("show");
-  });
-  userListDiv.addEventListener("click", () => {
-    document.querySelector(".sidebar").classList.remove("show");
-  });
+  function updateTitleBadge() {
+    unreadCount = 0;
+    for (const user in chats) {
+      unreadCount += chats[user].filter(m => m.type === "other" && !m.seen).length;
+    }
+    document.title = (unreadCount > 0 ? "(" + unreadCount + ") " : "") + "Chat App";
+  }
+
+  function markConversationSeen(user, shouldEmit) {
+    if (!user || !chats[user]) return false;
+    let hasUnseen = false;
+    chats[user].forEach((m) => {
+      if (m.type === "other" && !m.seen) {
+        m.seen = true;
+        hasUnseen = true;
+      }
+    });
+    if (hasUnseen) {
+      updateTitleBadge();
+      if (shouldEmit) {
+        socket.emit("messageSeen", { from: currentUser, to: user });
+      }
+    }
+    return hasUnseen;
+  }
 
   function getInputEl() { return document.getElementById("message-input"); }
   function getInputValue() { const el = getInputEl(); return el ? el.value : ""; }
@@ -47,7 +87,72 @@ document.addEventListener("DOMContentLoaded", () => {
     chatStatusEl.textContent = online ? "Online" : "Offline";
   }
 
-  function addMessage(msg, type, code = false, from = "", seen = false, file = null) {
+  function clearReply() {
+    currentReply = null;
+    const preview = document.getElementById("reply-preview");
+    if (preview) preview.remove();
+  }
+
+  function setReply(from, text) {
+    currentReply = { from, text };
+    let preview = document.getElementById("reply-preview");
+    if (!preview) {
+      preview = document.createElement("div");
+      preview.id = "reply-preview";
+      preview.className = "reply-preview";
+      const cancel = document.createElement("span");
+      cancel.className = "reply-cancel";
+      cancel.textContent = "✖";
+      cancel.title = "Cancel reply";
+      cancel.addEventListener("click", clearReply);
+      preview.appendChild(cancel);
+      const span = document.createElement("span");
+      span.id = "reply-text";
+      preview.appendChild(span);
+      const wrapper = document.querySelector(".chat-input");
+      wrapper.parentNode.insertBefore(preview, wrapper);
+    }
+    document.getElementById("reply-text").textContent = "Reply to " + from + ": " + text;
+  }
+
+  function showContextMenu(x, y, msg, from) {
+    const existing = document.querySelector(".context-menu");
+    if (existing) existing.remove();
+
+    const menu = document.createElement("div");
+    menu.className = "context-menu";
+    menu.style.top = y + "px";
+    menu.style.left = x + "px";
+
+    const copyItem = document.createElement("div");
+    copyItem.className = "context-menu-item";
+    copyItem.textContent = "Copy";
+    copyItem.addEventListener("click", () => {
+      navigator.clipboard.writeText(msg).then(() => menu.remove());
+    });
+
+    const replyItem = document.createElement("div");
+    replyItem.className = "context-menu-item";
+    replyItem.textContent = "Reply";
+    replyItem.addEventListener("click", () => {
+      setReply(from, msg);
+      menu.remove();
+    });
+
+    menu.appendChild(copyItem);
+    menu.appendChild(replyItem);
+    document.body.appendChild(menu);
+
+    const hide = (e) => {
+      if (!menu.contains(e.target)) {
+        menu.remove();
+        document.removeEventListener("click", hide);
+      }
+    };
+    setTimeout(() => document.addEventListener("click", hide), 0);
+  }
+
+  function addMessage(msg, type, code, from, seen, file, timestamp, reply) {
     const wrapper = document.createElement("div");
     wrapper.classList.add("message", type);
 
@@ -57,7 +162,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const img = document.createElement("img");
         img.src = file.data;
         img.classList.add("shared-image");
-        if (msg) { // Optional caption
+        if (msg) {
           const caption = document.createElement("div");
           caption.textContent = msg;
           wrapper.appendChild(caption);
@@ -67,45 +172,46 @@ document.addEventListener("DOMContentLoaded", () => {
         const link = document.createElement("a");
         link.href = file.data;
         link.download = file.name || "download";
-        link.textContent = `📎 ${file.name || "Download File"}`;
+        link.textContent = "📎 " + (file.name || "Download File");
         link.classList.add("shared-file");
         wrapper.appendChild(link);
       }
     } else if (code) {
       wrapper.classList.add("code-block");
-      const label = document.createElement("div");
-      label.classList.add("code-label"); // Added for styling
-      label.textContent = from + ":";
       const pre = document.createElement("pre");
       const codeTag = document.createElement("code");
       codeTag.textContent = msg;
       pre.appendChild(codeTag);
-      wrapper.appendChild(label);
       wrapper.appendChild(pre);
-      try { if (window.hljs?.highlightElement) hljs.highlightElement(codeTag); } catch (e) { }
+      const timeSpan = document.createElement("span");
+      timeSpan.classList.add("timestamp");
+      timeSpan.textContent = timestamp || "";
+      wrapper.appendChild(timeSpan);
+      isText = true;
     } else {
-      wrapper.textContent = from + ": " + msg;
+      const textDiv = document.createElement("div");
+      textDiv.classList.add("text-message");
+      textDiv.textContent = msg;
+      const timeSpan = document.createElement("span");
+      timeSpan.classList.add("timestamp");
+      timeSpan.textContent = timestamp || "";
+      wrapper.appendChild(textDiv);
+      wrapper.appendChild(timeSpan);
       isText = true;
     }
 
-    if (isText || code) {
-      const copyBtn = document.createElement("i");
-      copyBtn.classList.add("bi", "bi-clipboard", "copy-btn");
-      copyBtn.title = "Copy text";
-      copyBtn.addEventListener("click", () => {
-        navigator.clipboard.writeText(msg).then(() => {
-          copyBtn.classList.replace("bi-clipboard", "bi-check2");
-          setTimeout(() => copyBtn.classList.replace("bi-check2", "bi-clipboard"), 2000);
-        });
-      });
+    if (reply) {
+      const replyDiv = document.createElement("div");
+      replyDiv.className = "reply-box";
+      replyDiv.textContent = "↩ " + (reply.from || "") + ": " + (reply.text || "");
+      wrapper.insertBefore(replyDiv, wrapper.firstChild);
+    }
 
-      if (code) {
-        // Append to the header label for code blocks
-        const labelDiv = wrapper.querySelector(".code-label");
-        if (labelDiv) labelDiv.appendChild(copyBtn);
-      } else {
-        wrapper.appendChild(copyBtn);
-      }
+    if (isText || code) {
+      wrapper.addEventListener("contextmenu", (e) => {
+        e.preventDefault();
+        showContextMenu(e.pageX, e.pageY, msg, from);
+      });
     }
 
     if (type === "me") {
@@ -123,7 +229,9 @@ document.addEventListener("DOMContentLoaded", () => {
   function renderChat(user) {
     chatBox.innerHTML = "";
     const list = chats[user] || [];
-    list.forEach(m => addMessage(m.message, m.type, !!m.code, m.from, !!m.seen, m.file));
+    list.forEach(function(m) {
+      addMessage(m.message, m.type, !!m.code, m.from, !!m.seen, m.file, m.timestamp, m.reply);
+    });
   }
 
   function sendMessage() {
@@ -131,55 +239,138 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!msg) return;
     if (!currentReceiver) { alert("Select a user to chat with"); return; }
 
-    socket.emit("chatMessage", { from: currentUser, to: currentReceiver, message: msg, code: !!codeMode });
+    const timestamp = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    const payload = { from: currentUser, to: currentReceiver, message: msg, code: !!codeMode, timestamp: timestamp };
+    if (currentReply) {
+      payload.reply = currentReply;
+    }
+    socket.emit("chatMessage", payload);
 
     if (!chats[currentReceiver]) chats[currentReceiver] = [];
-    chats[currentReceiver].push({ from: currentUser, message: msg, type: "me", code: !!codeMode, seen: false });
+    chats[currentReceiver].push({ from: currentUser, message: msg, type: "me", code: !!codeMode, seen: false, timestamp: timestamp, reply: currentReply });
     renderChat(currentReceiver);
     setInputValue("");
-    // after sending, consider remote will emit messageSeen when they view; nothing else here
+    clearReply();
   }
 
-  sendBtn?.addEventListener("click", sendMessage);
+  // --- Login ---
+  const loginError = document.createElement("div");
+  loginError.style.marginTop = "8px";
+  loginForm.appendChild(loginError);
 
-  attachBtn?.addEventListener("click", () => {
+  if (typeof Notification !== "undefined" && Notification.permission !== "granted") {
+    Notification.requestPermission();
+  }
+
+  socket.on("connect", () => {
+    const stored = localStorage.getItem("chatUsername");
+    if (stored) {
+      socket.emit("register", stored, (res) => {
+        if (res && res.ok) {
+          currentUser = res.username;
+          loginPage.style.display = "none";
+          chatPage.classList.remove("hidden");
+          socket.emit("requestUserList");
+        }
+      });
+    }
+  });
+
+  loginForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const desired = usernameInput.value.trim();
+    if (!desired) return;
+    if (typeof Notification !== "undefined" && Notification.permission === "default") {
+      Notification.requestPermission();
+    }
+    socket.emit("register", desired, (res) => {
+      if (!res || !res.ok) { loginError.textContent = (res && res.error) || "Login failed"; return; }
+      currentUser = res.username;
+      loginError.textContent = "";
+      localStorage.setItem("chatUsername", desired);
+      loginPage.style.display = "none";
+      chatPage.classList.remove("hidden");
+      socket.emit("requestUserList");
+      unreadCount = 0;
+      updateTitleBadge();
+    });
+  });
+
+  // --- Logout ---
+  logoutBtn.addEventListener("click", () => {
+    currentUser = "";
+    loginPage.style.display = "block";
+    chatPage.classList.add("hidden");
+    socket.disconnect();
+    socket.connect();
+    chats = {};
+    chatBox.innerHTML = "";
+    localStorage.clear();
+    unreadCount = 0;
+    updateTitleBadge();
+    location.reload();
+  });
+
+  // --- UI event listeners ---
+  sidebarBtn.addEventListener("click", () => {
+    document.querySelector(".sidebar").classList.toggle("show");
+  });
+
+  userListDiv.addEventListener("click", () => {
+    document.querySelector(".sidebar").classList.remove("show");
+  });
+
+  themeBtn.addEventListener("click", () => document.body.classList.toggle("dark"));
+
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden && isWindowActive && currentReceiver) {
+      markConversationSeen(currentReceiver, true);
+    }
+  });
+
+  window.addEventListener("focus", () => {
+    isWindowActive = true;
+    if (!document.hidden && currentReceiver) {
+      markConversationSeen(currentReceiver, true);
+      renderChat(currentReceiver);
+    }
+  });
+
+  window.addEventListener("blur", () => {
+    isWindowActive = false;
+  });
+
+  sendBtn.addEventListener("click", sendMessage);
+
+  attachBtn.addEventListener("click", () => {
     if (!currentReceiver) { alert("Select a user to share files with"); return; }
     fileInput.click();
   });
 
-  fileInput?.addEventListener("change", (e) => {
+  fileInput.addEventListener("change", (e) => {
     const file = e.target.files[0];
     if (!file) return;
-
-    if (file.size > 5 * 1024 * 1024) {
-      alert("File is too large (max 5MB)");
-      return;
-    }
-
+    if (file.size > 5 * 1024 * 1024) { alert("File is too large (max 5MB)"); return; }
     const reader = new FileReader();
     reader.onload = (evt) => {
-      const fileData = {
-        name: file.name,
-        type: file.type,
-        data: evt.target.result // Base64 representation
-      };
-
-      socket.emit("chatMessage", { from: currentUser, to: currentReceiver, message: "", code: false, file: fileData });
-
+      const fileData = { name: file.name, type: file.type, data: evt.target.result };
+      const timestamp = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      socket.emit("chatMessage", { from: currentUser, to: currentReceiver, message: "", code: false, file: fileData, timestamp: timestamp });
       if (!chats[currentReceiver]) chats[currentReceiver] = [];
-      chats[currentReceiver].push({ from: currentUser, message: "", type: "me", code: false, seen: false, file: fileData });
+      chats[currentReceiver].push({ from: currentUser, message: "", type: "me", code: false, seen: false, file: fileData, timestamp: timestamp });
       renderChat(currentReceiver);
     };
     reader.readAsDataURL(file);
-    fileInput.value = ""; // Reset input
+    fileInput.value = "";
   });
+
   inputWrapper.addEventListener("keydown", (e) => {
     const el = getInputEl();
     if (!el) return;
     if (el.tagName.toLowerCase() === "input" && e.key === "Enter") { e.preventDefault(); sendMessage(); }
   });
 
-  preBtn?.addEventListener("click", () => {
+  preBtn.addEventListener("click", () => {
     codeMode = !codeMode;
     preBtn.classList.toggle("active", codeMode);
     const cur = getInputValue();
@@ -193,7 +384,7 @@ document.addEventListener("DOMContentLoaded", () => {
       inp.type = "text"; inp.id = "message-input"; inp.placeholder = "Type a message...";
       inp.value = cur; inputWrapper.appendChild(inp);
     }
-    getInputEl()?.focus();
+    getInputEl().focus();
   });
 
   inputWrapper.addEventListener("input", (e) => {
@@ -207,31 +398,35 @@ document.addEventListener("DOMContentLoaded", () => {
     }, TYPING_TIMEOUT);
   });
 
-  themeBtn?.addEventListener("click", () => document.body.classList.toggle("dark"));
-  sidebarBtn?.addEventListener("click", () => {
-    const sb = document.querySelector(".sidebar");
-    if (sb) sb.classList.toggle("collapsed");
-  });
-
-  socket.on("chatMessage", ({ from, message, code, file }) => {
+  // --- Socket event listeners ---
+  socket.on("chatMessage", (data) => {
+    var from = data.from, message = data.message, code = data.code, file = data.file, timestamp = data.timestamp, reply = data.reply;
     if (!chats[from]) chats[from] = [];
-    chats[from].push({ from, message, type: "other", code: !!code, seen: false, file });
+    chats[from].push({ from: from, message: message, type: "other", code: !!code, seen: false, file: file, timestamp: timestamp, reply: reply });
 
     if (currentReceiver === from) {
+      if (!document.hidden && isWindowActive) {
+        markConversationSeen(from, true);
+      }
       renderChat(from);
-      socket.emit("messageSeen", { from: currentUser, to: from });
-    } else {
-      // optional unread marker could be added here
+    }
+    
+    updateTitleBadge();
+    
+    if ((document.hidden || !isWindowActive) && typeof Notification !== "undefined" && Notification.permission === "granted") {
+      new Notification("New message from " + from, { body: message || "File attachment" });
     }
   });
 
-  socket.on("messageSeen", ({ from }) => {
+  socket.on("messageSeen", (data) => {
+    var from = data.from;
     if (!chats[from]) return;
-    chats[from].forEach(m => { if (m.type === "me") m.seen = true; });
+    chats[from].forEach(function(m) { if (m.type === "me") m.seen = true; });
     if (currentReceiver === from) renderChat(from);
   });
 
-  socket.on("typing", ({ from, isTyping }) => {
+  socket.on("typing", (data) => {
+    var from = data.from, isTyping = data.isTyping;
     if (currentReceiver !== from) return;
     if (isTyping) {
       chatStatusEl.textContent = "Typing...";
@@ -246,42 +441,23 @@ document.addEventListener("DOMContentLoaded", () => {
   socket.on("userList", (users) => {
     onlineUsers = users.slice();
     userListDiv.innerHTML = "";
-    users.forEach(user => {
+    users.forEach(function(user) {
       if (user === currentUser) return;
       const btn = document.createElement("button");
       btn.textContent = user;
       if (user === currentReceiver) btn.classList.add("active");
       btn.addEventListener("click", () => {
         currentReceiver = user;
-        document.querySelectorAll("#user-list button").forEach(b => b.classList.remove("active"));
+        document.querySelectorAll("#user-list button").forEach(function(b) { b.classList.remove("active"); });
         btn.classList.add("active");
         updateHeader(user, onlineUsers.includes(user));
+        
+        markConversationSeen(user, true);
         renderChat(user);
-        socket.emit("messageSeen", { from: currentUser, to: user });
+        updateTitleBadge();
       });
       userListDiv.appendChild(btn);
     });
     updateHeader(currentReceiver, onlineUsers.includes(currentReceiver));
   });
-
-  const loginError = document.createElement("div");
-  loginError.style.color = "crimson";
-  loginError.style.marginTop = "8px";
-  loginForm.appendChild(loginError);
-
-  loginForm.addEventListener("submit", (e) => {
-    e.preventDefault();
-    const desired = usernameInput.value.trim();
-    if (!desired) return;
-    socket.emit("register", desired, (res) => {
-      if (!res?.ok) { loginError.textContent = res?.error || "Login failed"; return; }
-      currentUser = res.username;
-      loginError.textContent = "";
-      loginPage.style.display = "none";
-      chatPage.classList.remove("hidden");
-      socket.emit("requestUserList");
-    });
-  });
-
-  socket.on("connect", () => { });
 });

@@ -6,7 +6,10 @@ const path = require("path");
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server);
+const io = new Server(server, {
+  pingInterval: 25000,
+  pingTimeout: 120000
+});
 
 app.use(cors());
 app.use(express.json());
@@ -21,7 +24,14 @@ io.on("connection", (socket) => {
     if (!/^[a-zA-Z0-9_]{3,20}$/.test(display)) {
       return ack?.({ ok: false, error: "3–20 chars: letters, numbers, _" });
     }
-    if (users.has(norm)) return ack?.({ ok: false, error: "Username already taken" });
+    if (users.has(norm)) {
+      const existing = users.get(norm);
+      if (existing && existing.id !== socket.id) {
+        io.to(existing.id).emit("forceLogout");
+        const oldSocket = io.sockets.sockets.get(existing.id);
+        if (oldSocket) oldSocket.disconnect(true);
+      }
+    }
 
     users.set(norm, { id: socket.id, display });
     socket.data.usernameNorm = norm;
@@ -31,12 +41,12 @@ io.on("connection", (socket) => {
     io.emit("userList", Array.from(users.values()).map(u => u.display));
   });
 
-  socket.on("chatMessage", ({ from, to, message, code, file }) => {
+  socket.on("chatMessage", ({ from, to, message, code, file, timestamp, reply }) => {
     if (!to || !from) return;
-    if (from.toLowerCase() === String(to || "").toLowerCase()) return; // ignore self-send
+    if (from.toLowerCase() === String(to || "").toLowerCase()) return;
     const target = users.get(String(to || "").toLowerCase());
     if (target) {
-      io.to(target.id).emit("chatMessage", { from, message, code: !!code, file });
+      io.to(target.id).emit("chatMessage", { from, message, code: !!code, file, timestamp, reply });
     }
   });
 
