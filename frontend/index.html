@@ -1,70 +1,392 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Chat App</title>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>TalkToMe • Real-Time Chat</title>
+
+  <!-- Typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Bootstrap Icons & Highlight.js -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 
   <!-- App CSS -->
   <link rel="stylesheet" href="style.css" />
-
-  <!-- Icons & Highlight.js -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" />
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css" />
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 </head>
 
-<body>
-  <!-- Login Page -->
+<body class="dark">
+  <!-- Toast Notification Container (With Live Progress Bar) -->
+  <div id="toast-container" class="toast-container" aria-live="polite"></div>
+
+  <!-- Login Screen -->
   <div id="login-page">
-    <div class="login-box">
-      <h2>Welcome</h2>
+    <div class="login-card">
+      <div class="login-brand">
+        <!-- Prominent Brand Logo Icon -->
+        <div class="app-logo-badge" title="TalkToMe">
+          <i class="bi bi-chat-heart-fill"></i>
+        </div>
+        <h2>TalkToMe</h2>
+        <p>Real-time messaging, files & code sharing</p>
+      </div>
       <form id="login-form">
-        <input type="text" id="username" placeholder="Enter username" required />
-        <button type="submit">Login</button>
+        <div class="login-field">
+          <i class="bi bi-at"></i>
+          <input type="text" id="username" placeholder="Choose a username" autocomplete="off" required />
+        </div>
+        <div id="login-error" class="login-error-msg"></div>
+        <button type="submit" id="login-submit-btn" class="login-submit-btn">
+          <span>Get Started</span>
+          <i class="bi bi-arrow-right"></i>
+        </button>
       </form>
     </div>
   </div>
 
-  <!-- Chat Page (hidden until login) -->
-  <div id="chat-page" class="chat-container hidden">
-    <!-- Sidebar -->
-    <div class="sidebar">
-      <h3>Online Users</h3>
-      <div id="user-list"></div>
-    </div>
+  <!-- Main Chat Application Container -->
+  <div id="chat-page" class="app-layout hidden">
+    
+    <!-- Sidebar: Chat List (Rounded Card Panel) -->
+    <aside class="sidebar-panel" id="sidebar-panel">
+      <!-- Top Bar: Logo & Brand -->
+      <div class="sidebar-header">
+        <div class="sidebar-branding">
+          <div class="sidebar-mini-logo">
+            <i class="bi bi-chat-heart-fill"></i>
+          </div>
+          <span class="sidebar-app-name">TalkToMe</span>
+        </div>
+      </div>
 
-    <!-- Chat Window -->
-    <div class="chat-window">
-      <div id="chat-header">
-        <div class="chat-info">
-          <div class="avatar"><i class="bi bi-person-circle"></i></div>
-          <div class="chat-meta">
-            <span id="chat-username">Select a user</span>
-            <small id="chat-status">Offline</small>
+      <!-- Search Bar -->
+      <div class="search-container">
+        <div class="search-box">
+          <i class="bi bi-search search-icon"></i>
+          <input type="text" id="user-search" placeholder="Search contacts" autocomplete="off" />
+          <button type="button" class="search-action-btn" id="search-clear-btn" title="Clear search">
+            <i class="bi bi-x"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Users & Conversations List -->
+      <div class="chat-list-scroll" id="user-list">
+        <!-- Rendered dynamically -->
+      </div>
+
+      <!-- Bottom Navigation Bar (Matching Mockup) -->
+      <nav class="bottom-nav">
+        <button type="button" class="nav-item active" data-tab="chats" title="Chats">
+          <i class="bi bi-chat-square-text-fill"></i>
+          <span>Chats</span>
+        </button>
+        <button type="button" class="nav-item" data-tab="calls" id="nav-calls-btn" title="Voice & Video Calls">
+          <i class="bi bi-telephone"></i>
+          <span>Calls</span>
+        </button>
+        <button type="button" class="nav-item" data-tab="saved" id="nav-saved-btn" title="Saved Messages">
+          <i class="bi bi-bookmark"></i>
+          <span>Saved</span>
+        </button>
+        <button type="button" class="nav-item" data-tab="guide" id="nav-guide-btn" title="User Guide">
+          <i class="bi bi-book"></i>
+          <span>Guide</span>
+        </button>
+        <button type="button" class="nav-item" data-tab="settings" title="Settings" id="settings-nav-btn">
+          <i class="bi bi-gear"></i>
+          <span>Settings</span>
+        </button>
+      </nav>
+    </aside>
+
+    <!-- Main Conversation Window (Rounded Card Panel) -->
+    <main class="chat-window" id="chat-window">
+      <!-- Chat Conversation Header -->
+      <header class="chat-header">
+        <button type="button" class="chat-back-btn" id="chat-back-btn" title="Back to chats">
+          <i class="bi bi-chevron-left"></i>
+        </button>
+        
+        <div class="chat-header-profile" id="chat-header-profile">
+          <div class="header-avatar" id="header-avatar">
+            <span id="header-avatar-initials">?</span>
+            <span class="online-indicator" id="header-online-indicator"></span>
+          </div>
+          <div class="header-details">
+            <div class="header-title" id="chat-username">Select a contact</div>
+            <div class="header-status" id="chat-status">Offline</div>
           </div>
         </div>
-        <div class="header-actions">
-          <button id="theme-btn" title="Toggle Theme"><i class="bi bi-moon-fill"></i></button>
-          <button id="sidebar-btn" class="d-md-none" title="Toggle Users"><i class="bi bi-people-fill"></i></button>
+
+        <div class="header-controls">
+          <button type="button" class="icon-circle-btn" id="header-media-btn" title="Shared Media">
+            <i class="bi bi-images"></i>
+          </button>
+          <button type="button" class="icon-circle-btn header-desktop-only" id="header-call-btn" title="Voice Call">
+            <i class="bi bi-telephone-fill"></i>
+          </button>
+          <button type="button" class="icon-circle-btn header-desktop-only" id="theme-btn" title="Toggle Light / Dark mode">
+            <i class="bi bi-moon-fill" id="theme-icon"></i>
+          </button>
+          <button type="button" class="icon-circle-btn header-desktop-only" id="notification-btn" title="Toggle Notifications">
+            <i class="bi bi-bell-fill" id="notification-icon"></i>
+          </button>
+          <div class="dropdown-wrapper">
+            <button type="button" class="icon-circle-btn" id="chat-menu-btn" title="More options">
+              <i class="bi bi-three-dots-vertical"></i>
+            </button>
+            <div class="dropdown-menu hidden" id="chat-dropdown-menu">
+              <button type="button" class="dropdown-item" id="menu-view-media-btn">
+                <i class="bi bi-images"></i>
+                <span>Shared Media</span>
+              </button>
+              <button type="button" class="dropdown-item header-mobile-only" id="menu-theme-btn">
+                <i class="bi bi-palette"></i>
+                <span>Switch Theme</span>
+              </button>
+              <button type="button" class="dropdown-item header-mobile-only" id="menu-call-btn">
+                <i class="bi bi-telephone"></i>
+                <span>Voice Call</span>
+              </button>
+              <button type="button" class="dropdown-item" id="export-chat-btn">
+                <i class="bi bi-cloud-arrow-down"></i>
+                <span>Export Chat Data</span>
+              </button>
+              <button type="button" class="dropdown-item" id="clear-chat-btn">
+                <i class="bi bi-trash3"></i>
+                <span>Clear history</span>
+              </button>
+              <button type="button" class="dropdown-item" id="logout-menu-btn">
+                <i class="bi bi-box-arrow-right"></i>
+                <span>Sign out</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <!-- Messages Stream Area -->
+      <div class="messages-container" id="chat-box">
+        <div class="empty-conversation-state" id="empty-state">
+          <div class="empty-state-icon">
+            <i class="bi bi-chat-heart"></i>
+          </div>
+          <h3>Select a conversation</h3>
+          <p>Choose an online contact from the sidebar to start chatting</p>
         </div>
       </div>
 
-      <div id="chat-box" class="chat-box"></div>
+      <!-- Reply Bar Container -->
+      <div id="reply-container" class="reply-container hidden"></div>
 
-      <div class="chat-input">
-        <div id="input-wrapper">
-          <input type="text" id="message-input" placeholder="Type a message..." />
+      <!-- Chat Bottom Input Bar -->
+      <footer class="chat-input-bar">
+        <button type="button" class="input-action-btn" id="emoji-btn" title="Insert Emoji">
+          <i class="bi bi-emoji-smile"></i>
+        </button>
+
+        <button type="button" class="input-action-btn" id="attach-btn" title="Attach file or photo">
+          <i class="bi bi-paperclip"></i>
+        </button>
+
+        <button type="button" class="input-action-btn" id="pre-btn" title="Toggle code snippet">
+          <i class="bi bi-code-slash"></i>
+        </button>
+
+        <div class="message-input-wrapper" id="input-wrapper">
+          <input type="text" id="message-input" placeholder="Type a message..." autocomplete="off" />
         </div>
-        <button id="attach-btn" title="Attach file"><i class="bi bi-paperclip"></i></button>
-        <button id="pre-btn" title="Toggle code"><i class="bi bi-code"></i></button>
-        <button id="send-btn">➤</button>
-      </div>
-    </div>
-    <input type="file" id="file-input" class="hidden" />
+
+        <button type="button" class="send-message-btn" id="send-btn" title="Send message">
+          <i class="bi bi-send-fill"></i>
+        </button>
+      </footer>
+
+      <!-- Hidden file input for attachments -->
+      <input type="file" id="file-input" class="hidden" />
+    </main>
   </div>
 
-  <!-- Socket.IO (Local fallback + CDN) + App script -->
+  <!-- Settings Drawer Modal -->
+  <div class="modal-layer hidden" id="settings-modal">
+    <div class="modal-backdrop" id="settings-backdrop"></div>
+    <div class="drawer-sheet">
+      <div class="drawer-header">
+        <button type="button" class="icon-circle-btn" id="settings-close-btn" title="Close">
+          <i class="bi bi-chevron-left"></i>
+        </button>
+        <h3>Settings</h3>
+        <div></div>
+      </div>
+
+      <div class="settings-profile-hero">
+        <div class="settings-avatar">
+          <span id="settings-avatar-initials">U</span>
+        </div>
+        <h2 id="settings-profile-name">Username</h2>
+        <span class="settings-online-badge">Online</span>
+      </div>
+
+      <div class="settings-card">
+        <div class="settings-info-row">
+          <div class="info-icon"><i class="bi bi-at"></i></div>
+          <div class="info-content">
+            <span class="info-value" id="settings-profile-username">username</span>
+            <span class="info-label">Username</span>
+          </div>
+        </div>
+        <div class="settings-info-row">
+          <div class="info-icon"><i class="bi bi-info-circle"></i></div>
+          <div class="info-content">
+            <span class="info-value">TalkToMe Real-time Client</span>
+            <span class="info-label">Version 2.0</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-card settings-options-list">
+        <!-- User Guide -->
+        <div class="settings-option-item" id="opt-user-guide">
+          <div class="option-icon"><i class="bi bi-book"></i></div>
+          <span class="option-label">User Guide & Rules</span>
+          <i class="bi bi-chevron-right option-arrow"></i>
+        </div>
+
+        <!-- Export All Data Option -->
+        <div class="settings-option-item" id="opt-export-data">
+          <div class="option-icon"><i class="bi bi-cloud-arrow-down"></i></div>
+          <span class="option-label">Export All Chat Data</span>
+          <i class="bi bi-chevron-right option-arrow"></i>
+        </div>
+
+        <!-- Theme Toggle -->
+        <div class="settings-option-item" id="opt-theme-toggle">
+          <div class="option-icon"><i class="bi bi-palette"></i></div>
+          <span class="option-label">Themes & Style</span>
+          <span class="option-secondary" id="opt-current-theme">Dark</span>
+          <i class="bi bi-chevron-right option-arrow"></i>
+        </div>
+
+        <!-- Notifications Toggle -->
+        <div class="settings-option-item" id="opt-notifications-toggle">
+          <div class="option-icon"><i class="bi bi-bell"></i></div>
+          <span class="option-label">Notifications</span>
+          <span class="option-secondary" id="opt-current-notifications">On</span>
+          <i class="bi bi-chevron-right option-arrow"></i>
+        </div>
+
+        <!-- Logout -->
+        <div class="settings-option-item danger" id="opt-logout">
+          <div class="option-icon"><i class="bi bi-box-arrow-right"></i></div>
+          <span class="option-label">Log Out</span>
+          <i class="bi bi-chevron-right option-arrow"></i>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- User Guide Drawer Modal -->
+  <div class="modal-layer hidden" id="guide-modal">
+    <div class="modal-backdrop" id="guide-backdrop"></div>
+    <div class="drawer-sheet">
+      <div class="drawer-header">
+        <button type="button" class="icon-circle-btn" id="guide-close-btn" title="Back">
+          <i class="bi bi-chevron-left"></i>
+        </button>
+        <h3>User Guide</h3>
+        <div></div>
+      </div>
+
+      <div class="guide-content">
+        <!-- Critical Data Persistence Notice -->
+        <div class="guide-alert-card">
+          <i class="bi bi-exclamation-triangle-fill"></i>
+          <div>
+            <div class="guide-alert-title">Important: Ephemeral In-Memory Storage</div>
+            <div class="guide-alert-text">
+              Messages and sessions exist only during your active live session. <strong>Once you log out or clear your browsing session, your messages cannot be recovered.</strong>
+              Use the <strong>"Export Chat Data"</strong> option in Settings to save a backup anytime.
+            </div>
+          </div>
+        </div>
+
+        <div class="guide-section">
+          <h4><i class="bi bi-chat-dots-fill"></i> Messaging & Formatting</h4>
+          <p>Send text, formatted code snippets, and image/document attachments up to 5MB. Click the code icon (<code>&lt;/&gt;</code>) to paste syntax-highlighted code blocks.</p>
+        </div>
+
+        <div class="guide-section">
+          <h4><i class="bi bi-cursor-fill"></i> Message Context Actions</h4>
+          <p>Right-click (or long press on mobile) on any message to reveal the action menu:</p>
+          <ul>
+            <li><strong>Reply</strong>: Quotes the target message directly above your reply.</li>
+            <li><strong>Copy</strong>: Copies message text to your clipboard.</li>
+            <li><strong>Pin / Delete</strong>: Manage individual messages locally.</li>
+          </ul>
+        </div>
+
+        <div class="guide-section">
+          <h4><i class="bi bi-shield-check"></i> Connection & Reliability</h4>
+          <p>Socket.IO maintains a persistent WebSocket connection with automatic exponential-backoff reconnects. Live toast notifications inform you of any connection drops.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Shared Media Drawer Modal (Matching Redesign user-profile.png) -->
+  <div class="modal-layer hidden" id="media-modal">
+    <div class="modal-backdrop" id="media-backdrop"></div>
+    <div class="drawer-sheet">
+      <div class="drawer-header">
+        <button type="button" class="icon-circle-btn" id="media-close-btn" title="Back">
+          <i class="bi bi-chevron-left"></i>
+        </button>
+        <h3 id="media-modal-title">Shared Media</h3>
+        <div></div>
+      </div>
+
+      <!-- Category Filter Pills (Matches MEDIA, DOCS, LINKS tabs in mockup) -->
+      <div class="media-tabs-bar">
+        <button type="button" class="media-tab-pill active" data-filter="all">All</button>
+        <button type="button" class="media-tab-pill" data-filter="images">Photos</button>
+        <button type="button" class="media-tab-pill" data-filter="docs">Docs & Files</button>
+      </div>
+
+      <div class="media-content-container" id="media-content-list">
+        <!-- Rendered dynamically -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Image Lightbox Modal -->
+  <div class="lightbox-modal hidden" id="image-lightbox">
+    <div class="lightbox-backdrop" id="lightbox-backdrop"></div>
+    <div class="lightbox-container">
+      <button type="button" class="lightbox-close-btn" id="lightbox-close-btn">&times;</button>
+      <img id="lightbox-img" src="" alt="Full preview" />
+      <div class="lightbox-caption" id="lightbox-caption"></div>
+    </div>
+  </div>
+
+  <!-- Calling Feature Status Dialog Modal -->
+  <div class="dialog-modal hidden" id="call-dialog">
+    <div class="modal-backdrop" id="call-backdrop"></div>
+    <div class="dialog-box">
+      <div class="dialog-icon-badge">
+        <i class="bi bi-telephone-outbound-fill"></i>
+      </div>
+      <h3>Voice & Video Calls</h3>
+      <p>P2P Encrypted Audio & Video calls via WebRTC are currently in development for a future update. Instant messaging, file exchange, and code sharing are active!</p>
+      <button type="button" class="dialog-btn" id="call-dialog-close">Got it</button>
+    </div>
+  </div>
+
+  <!-- Socket.IO (Server-served with local fallback) + App script -->
   <script src="/socket.io/socket.io.js"></script>
   <script>
     if (typeof io === "undefined") {
@@ -73,5 +395,4 @@
   </script>
   <script src="chat.js"></script>
 </body>
-
 </html>

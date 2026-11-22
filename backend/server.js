@@ -7,6 +7,7 @@ const path = require("path");
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
+  maxHttpBufferSize: 1e7, // 10MB (Default is only 1MB which drops sockets on attachments!)
   pingInterval: 25000,
   pingTimeout: 120000,
   cors: {
