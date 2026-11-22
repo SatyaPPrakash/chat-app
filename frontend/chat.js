@@ -294,6 +294,7 @@ document.addEventListener("DOMContentLoaded", () => {
   updateNotificationToggleUI();
 
   socket.on("connect", () => {
+    loginError.textContent = "";
     const stored = localStorage.getItem("chatUsername");
     if (stored) {
       socket.emit("register", stored, (res) => {
@@ -302,8 +303,20 @@ document.addEventListener("DOMContentLoaded", () => {
           loginPage.style.display = "none";
           chatPage.classList.remove("hidden");
           socket.emit("requestUserList");
+        } else {
+          localStorage.removeItem("chatUsername");
         }
       });
+    }
+  });
+
+  socket.on("connect_error", () => {
+    loginError.textContent = "⚠ Unable to reach server. Retrying…";
+  });
+
+  socket.on("disconnect", () => {
+    if (!currentUser) {
+      loginError.textContent = "⚠ Disconnected from server.";
     }
   });
 
@@ -311,9 +324,14 @@ document.addEventListener("DOMContentLoaded", () => {
     e.preventDefault();
     const desired = usernameInput.value.trim();
     if (!desired) return;
+    if (!socket.connected) {
+      loginError.textContent = "Cannot connect to server. Please try again.";
+      return;
+    }
     if (notificationsEnabled && typeof Notification !== "undefined" && Notification.permission === "default") {
       Notification.requestPermission();
     }
+    loginError.textContent = "Signing in…";
     socket.emit("register", desired, (res) => {
       if (!res || !res.ok) { loginError.textContent = (res && res.error) || "Login failed"; return; }
       currentUser = res.username;
@@ -325,6 +343,19 @@ document.addEventListener("DOMContentLoaded", () => {
       unreadCount = 0;
       updateTitleBadge();
     });
+  });
+
+  // Handle forced logout (same username signed in elsewhere)
+  socket.on("forceLogout", () => {
+    alert("You were signed out because your username was used on another device.");
+    currentUser = "";
+    loginPage.style.display = "block";
+    chatPage.classList.add("hidden");
+    chats = {};
+    chatBox.innerHTML = "";
+    localStorage.clear();
+    unreadCount = 0;
+    updateTitleBadge();
   });
 
   // --- Logout ---
