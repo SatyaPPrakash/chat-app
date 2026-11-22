@@ -64,8 +64,13 @@
     <input type="file" id="file-input" class="hidden" />
   </div>
 
-  <!-- Socket.IO + App script -->
-  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <!-- Socket.IO (Local fallback + CDN) + App script -->
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    if (typeof io === "undefined") {
+      document.write('<script src="socket.io.min.js"><\/script>');
+    }
+  </script>
   <script src="chat.js"></script>
 </body>
 
